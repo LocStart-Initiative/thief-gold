@@ -1,11 +1,10 @@
-
 import mmap
 import os
 import re
-import pandas as pd
+import sys
+from pathlib import Path
 
-walk_dir = "./SOURCE"
-paste_dir = "./SOURCE-Intermediate"
+import pandas as pd
 
 ##### ^(?!\w+:\s*")[^\n]*"$
 
@@ -13,33 +12,39 @@ paste_dir = "./SOURCE-Intermediate"
 # problematic files for this pattern:
 #   intrface/english/RCS/OPTIONS.STR
 
-for root, subdirs, files in os.walk(walk_dir):
+folder_from = sys.argv[1]
+folder_to = sys.argv[2]
+
+for root, subdirs, files in os.walk(folder_from):
     for file in files:
         if os.path.splitext(file)[1] == ".STR" or os.path.splitext(file)[1] == ".str":
             openfile = open(os.path.join(root, file), 'rb')
-            print(root + file)
+            # print(root + file)
             with mmap.mmap(openfile.fileno(), length=0, access=mmap.ACCESS_READ) as mm:
-
                 mo = re.findall(br'(^\w+):\s*"([^"\\]*(?:\\[\s\S\n]+?[^"\\]*)*\s*)(")', mm, re.MULTILINE)
-
                 if mo:
                     for match in mo:
+                        data = {
+                            "id": [],
+                            "string": []
+                        }
+
                         data["id"].append(match[0].decode("cp1252"))
                         data["string"].append(match[1].decode("cp1252"))
 
-                data = {
-                    "id": [],
-                    "string": []
-                }
+                        # print(data)
 
-                print(data)
+                        # save to excel file
+                        df = pd.DataFrame(data)
 
-                # save to excel file
-                df = pd.DataFrame(data)
-                df.to_excel(os.path.join(root, os.path.splitext(file)[0]) + ".xlsx", index=False)
+                        relative = root.replace(folder_from, "")[1:]
+                        absolute = os.path.join(folder_to, relative)
 
-                openfile.close()
+                        if not os.path.isdir(absolute):
+                            Path(absolute).mkdir(parents=True)
 
+                        target_file = os.path.join(absolute, os.path.splitext(file)[0] + ".xlsx")
 
+                        df.to_excel(target_file, index=False)
 
-
+                        openfile.close()
